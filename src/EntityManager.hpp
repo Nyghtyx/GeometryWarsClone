@@ -13,8 +13,7 @@ class EntityManager
 
     void removeDeadEntities(EntityVec& vec)
     {
-        // TODO: remove all dead entities from the input vector
-        //       this is called by the update() function
+        std::erase_if(vec, [](auto const& e) { return !(e->isActive()); });
     }
 
 public:
@@ -23,9 +22,14 @@ public:
 
     void update()
     {
-        // TODO: add entities from m_entitiesToAdd to the proper locations(s)
-        //       - add them to the vector of all entities
-        //       - add them to the vector inside the map, with the tag as a key
+        // Add entities from m_entitiesToAdd to the proper locations(s)
+        for (auto e : m_entitiesToAdd)
+        {
+            m_entities.push_back(e);
+            // not sure if this is needed here because it seems that entities
+            // are being added to the map at the time of creation within addEntity()
+            // m_entityMap[e->tag()].push_back(e);
+        }
 
         // remove dead entities from the vector of all entities
         removeDeadEntities(m_entities);
