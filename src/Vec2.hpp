@@ -57,34 +57,36 @@ public:
 
     bool operator != (const Vec2& rhs) const
     {
-        // TODO
-        return false;
+        return (x != rhs.x || y != rhs.y);
     }
 
     void operator += (const Vec2& rhs)
     {
-        // TODO
+        x += rhs.x;
+        y += rhs.y;
     }
 
     void operator -= (const Vec2& rhs)
     {
-        // TODO
+        x -= rhs.x;
+        y -= rhs.y;
     }
 
     void operator *= (const T val)
     {
-        // TODO
+        x *= val;
+        y *= val;
     }
 
     void operator /= (const T val)
     {
-        // TODO
+        x /= val;
+        y /= val;
     }
 
     float dist(const Vec2& rhs) const
     {
-        // TODO
-        return 1.0f;
+        return std::sqrtf((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y));
     }
 };
 
