@@ -156,20 +156,36 @@ void Game::spawnEnemy()
 
     auto entity = m_entities.addEntity("enemy");
     entity->add<CTransform>(Vec2f(spawnX, spawnY), Vec2f(speedX, speedY), 0.0f);
-    entity->add<CShape>(m_enemyConfig.SR, vertices, sf::Color(255, 0, 0), 
+    entity->add<CShape>(m_enemyConfig.SR, vertices, 
+        sf::Color(rand() % (1 + 255), rand() % (1 + 255), rand() % (1 + 255)),
         sf::Color(m_enemyConfig.OR, m_enemyConfig.OG, m_enemyConfig.OB), m_enemyConfig.OT);
     entity->get<CShape>().circle.setOrigin(m_enemyConfig.SR, m_enemyConfig.SR);
+    entity->add<CScore>(vertices * 100);
 }
 
 // spawns the small enemies when a big one (input entity e) explodes
 void Game::spawnSmallEnemies(std::shared_ptr<Entity> e)
 {
-    // TODO: spawn small enemies at the location of the input enemy e
-
-    // when we create smaller enemy, we have to read the values of the original enemy
     // - spawn a number of small enemies equal to the vertices of the original enemy
     // - set each small enemy to the same color as the original, half the size
     // - small enemies are worth double points of the original enemy
+    int vertices = (int)e->get<CShape>().circle.getPointCount();
+    float theta =  (float)(rand()) / RAND_MAX * 2.0f * 3.141592f;
+    for (int i = 0; i < vertices; i++)
+    {
+        
+        auto entity = m_entities.addEntity("smallEnemy");
+        entity->add<CTransform>(e->get<CTransform>().pos, 
+            Vec2f(std::cos(theta + 2.0f * 3.141592f / vertices * i), std::sin(theta + 2.0f * 3.141592f / vertices * i)) 
+            * e->get<CTransform>().velocity.length(),
+            0.0f);
+        entity->add<CShape>(m_enemyConfig.SR / 2, vertices,
+            e->get<CShape>().circle.getFillColor(),
+            e->get<CShape>().circle.getOutlineColor(), m_enemyConfig.OT);
+        entity->get<CShape>().circle.setOrigin(m_enemyConfig.SR / 2.0f, m_enemyConfig.SR / 2.0f);
+        entity->add<CScore>(vertices * 200);
+        entity->add<CLifespan>(m_enemyConfig.L);
+    }
 }
 
 // spawns a bullet from a given entity to a target location
@@ -193,9 +209,6 @@ void Game::spawnSpecialWeapon(std::shared_ptr<Entity> entity)
 
 void Game::sMovement()
 {
-    // TODO: implement all entity movement in this function
-    //       you should read the m_player->Input component to determine if the player is moving
-
     // handle player movement
     Vec2f tempVel = Vec2f(0.0f, 0.0f);
     auto& playerInput = player()->get<CInput>();
@@ -259,6 +272,7 @@ void Game::sCollision()
     auto& playerVel = player()->get<CTransform>().velocity;
     int wWidth = m_window.getSize().x;
     int wHeight = m_window.getSize().y;
+
     // enemies will bounce on walls, destroy the player and get killed by bullets
     for (auto& e : m_entities.getEntities("enemy"))
     {
@@ -279,7 +293,7 @@ void Game::sCollision()
             ((m_playerConfig.CR + m_enemyConfig.CR) * (m_playerConfig.CR + m_enemyConfig.CR)))
         {
             player()->destroy();
-            // TODO spawn mini enemies
+            spawnSmallEnemies(e);
             e->destroy();
             spawnPlayer();
         }
@@ -292,12 +306,42 @@ void Game::sCollision()
                 ((m_enemyConfig.CR + m_bulletConfig.CR) * (m_enemyConfig.CR + m_bulletConfig.CR)))
             {
                 b->destroy();
-                // TODO spawn mini enemies
+                spawnSmallEnemies(e);
                 e->destroy();
                 break;
             }
         }
     }
+
+    // same for small enemies except they dont bounce on walls or spawn more enemies
+    for (auto& e : m_entities.getEntities("smallEnemy"))
+    {
+        auto& enemyPos = e->get<CTransform>().pos;
+        
+        // collide with player
+        Vec2f distFromPlayer = playerPos - enemyPos;
+        if ((distFromPlayer.x * distFromPlayer.x + distFromPlayer.y * distFromPlayer.y) <
+            ((m_playerConfig.CR + m_enemyConfig.CR / 2) * (m_playerConfig.CR + m_enemyConfig.CR) / 2))
+        {
+            player()->destroy();
+            e->destroy();
+            spawnPlayer();
+        }
+
+        // collide with bullets
+        for (auto& b : m_entities.getEntities("bullet"))
+        {
+            Vec2f distFromBullet = b->get<CTransform>().pos - enemyPos;
+            if ((distFromBullet.x * distFromBullet.x + distFromBullet.y * distFromBullet.y) <
+                ((m_enemyConfig.CR / 2 + m_bulletConfig.CR) * (m_enemyConfig.CR / 2 + m_bulletConfig.CR)))
+            {
+                b->destroy();
+                e->destroy();
+                break;
+            }
+        }
+    }
+
     // player collide with walls
     if ((playerPos.x + m_playerConfig.CR) > wWidth || (playerPos.x - m_playerConfig.CR) < 0)
     {
@@ -332,8 +376,6 @@ void Game::sGUI()
 
 void Game::sRender()
 {
-    // TODO: change the code below to draw ALL of the entities
-    //       sample drawing of the player Entity that we have created
     m_window.clear();
 
     for (auto& e : m_entities.getEntities())
@@ -353,11 +395,6 @@ void Game::sRender()
 
 void Game::sUserInput()
 {
-    // TODO: handle user input here
-    //       note that you should only be setting the player's input component variables here
-    //       you should not implement the player's movement logic here
-    //       the movement system will read the variables you set in this function
-
     sf::Event event;
     while (m_window.pollEvent(event))
     {
