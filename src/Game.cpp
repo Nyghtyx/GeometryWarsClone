@@ -258,13 +258,13 @@ void Game::sCollision()
     // TODO: implement all proper collisions between entities
     //       be sure to use the collision radius, NOT the shape radius
     auto& playerPos = player()->get<CTransform>().pos;
+    auto& playerVel = player()->get<CTransform>().velocity;
+    int wWidth = m_window.getSize().x;
+    int wHeight = m_window.getSize().y;
     // enemies will bounce on walls, destroy the player and get killed by bullets
     for (auto& e : m_entities.getEntities("enemy"))
     {
         auto& enemyPos = e->get<CTransform>().pos;
-        int wWidth = m_window.getSize().x;
-        int wHeight = m_window.getSize().y;
-
         // bounce on walls
         if ((enemyPos.x + m_enemyConfig.CR) > wWidth || (enemyPos.x - m_enemyConfig.CR) < 0)
         {
@@ -285,6 +285,16 @@ void Game::sCollision()
             e->destroy();
             spawnPlayer();
         }
+    }
+    // player collide with walls
+    if ((playerPos.x + m_playerConfig.CR) > wWidth || (playerPos.x - m_playerConfig.CR) < 0)
+    {
+        playerPos.x -= playerVel.x;
+    }
+
+    if ((playerPos.y + m_playerConfig.CR) > wHeight || (playerPos.y - m_playerConfig.CR) < 0)
+    {
+        playerPos.y -= playerVel.y;
     }
 }
 
