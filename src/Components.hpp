@@ -60,12 +60,12 @@ public:
 class CLifespan : public Component
 {
 public:
-    int Lifespan        = 0;
+    int lifespan        = 0;
     int remaining       = 0;
 
     CLifespan() = default;
     CLifespan(int totalLifespan)
-        : Lifespan(totalLifespan), remaining(totalLifespan) {}
+        : lifespan(totalLifespan), remaining(totalLifespan) {}
 };
 
 class CInput : public Component
