@@ -104,6 +104,7 @@ void Game::run()
         ImGui::SFML::Update(m_window, m_deltaClock.restart());
 
         sEnemySpawner();
+        sLifespan();
         sMovement();
         sCollision();
         sUserInput();
@@ -132,8 +133,8 @@ void Game::spawnPlayer()
     // Give this entity a Transform so it spawns at (200,200) with velocity (1,1) and angle 0.0f
     entity->add<CTransform>(Vec2f(200.0f, 200.0f), Vec2f(1.0f, 1.0f), 0.0f);
 
-    // The entity's shape will have radius 32, 8 sides, dark grey fill, and red outline of 4 points
-    entity->add<CShape>(32.0f, 8, sf::Color(10, 10, 10), sf::Color(255, 0, 0), 4.0f);
+    entity->add<CShape>(m_playerConfig.SR, m_playerConfig.V, sf::Color(m_playerConfig.FR, m_playerConfig.FG, m_playerConfig.FB), 
+        sf::Color(m_playerConfig.OR, m_playerConfig.OG, m_playerConfig.OB), m_playerConfig.OT);
 
     // Add an input component to the player so that we can use inputs
     entity->add<CInput>();
@@ -142,8 +143,7 @@ void Game::spawnPlayer()
 // spawn an enemy at a random position
 void Game::spawnEnemy()
 {
-    // TODO: make sure the enemy is spawned properly with the m_enemyConfig variables
-    //       the enemy must be spawned completely within the bounds of the window
+    // the enemy must be spawned completely within the bounds of the window
     sf::Vector2u wSize = m_window.getSize();
     float spawnX = m_enemyConfig.SR + (rand() % (1 + wSize.x - 2 * m_enemyConfig.SR));
     float spawnY = m_enemyConfig.SR + (rand() % (1 + wSize.y - 2 * m_enemyConfig.SR));
@@ -157,7 +157,8 @@ void Game::spawnEnemy()
 
     auto entity = m_entities.addEntity("enemy");
     entity->add<CTransform>(Vec2f(spawnX, spawnY), Vec2f(speedX, speedY), 0.0f);
-    entity->add<CShape>(m_enemyConfig.SR, vertices, sf::Color(255, 0, 0), sf::Color(m_enemyConfig.OR, m_enemyConfig.OG, m_enemyConfig.OB), m_enemyConfig.OT);
+    entity->add<CShape>(m_enemyConfig.SR, vertices, sf::Color(255, 0, 0), 
+        sf::Color(m_enemyConfig.OR, m_enemyConfig.OG, m_enemyConfig.OB), m_enemyConfig.OT);
 }
 
 // spawns the small enemies when a big one (input entity e) explodes
@@ -174,9 +175,14 @@ void Game::spawnSmallEnemies(std::shared_ptr<Entity> e)
 // spawns a bullet from a given entity to a target location
 void Game::spawnBullet(std::shared_ptr<Entity> entity, const Vec2f& target)
 {
-    // TODO: implement the spawning of a bullet which travels toward target
-    //       - bullet speed is given as a scalar speed
-    //       - you must set the velocity by using formular in notes
+    Vec2f entityPos = entity->get<CTransform>().pos;
+    Vec2f bulletSpeed = (target - entityPos) / target.dist(entityPos) * m_bulletConfig.S;
+
+    auto bullet = m_entities.addEntity("bullet");
+    bullet->add<CTransform>(entityPos, bulletSpeed, 0.0f);
+    bullet->add<CShape>(m_bulletConfig.SR, m_bulletConfig.V, sf::Color(m_bulletConfig.FR, m_bulletConfig.FG, m_bulletConfig.FB),
+        sf::Color(m_bulletConfig.OR, m_bulletConfig.OG, m_bulletConfig.OB), m_bulletConfig.OT);
+    bullet->add<CLifespan>(m_bulletConfig.L);
 }
 
 void Game::spawnSpecialWeapon(std::shared_ptr<Entity> entity)
@@ -198,8 +204,6 @@ void Game::sMovement()
 
 void Game::sLifespan()
 {
-    // TODO: implement all lifespan functionality
-    //
     // for all entities
     //       if entity has no lifespan component, skip it
     //       if entity has > 0 remaining lifespan, substract 1
@@ -207,6 +211,27 @@ void Game::sLifespan()
     //          scale its alpha channel properly
     //       if it has lifespan and its time is up
     //          destroy the entity
+    for (auto& e : m_entities.getEntities())
+    {
+        if (e->has<CLifespan>())
+        {
+            int& currentLifespan = e->get<CLifespan>().remaining;
+            sf::Color currentFillColor = e->get<CShape>().circle.getFillColor();
+            sf::Color currentOutlineColor = e->get<CShape>().circle.getOutlineColor();
+            if (currentLifespan > 0)
+            {
+                currentLifespan -= 1;
+                e->get<CShape>().circle.setFillColor(sf::Color(currentFillColor.r, currentFillColor.g, currentFillColor.b,
+                    (float)currentLifespan / (float)e->get<CLifespan>().lifespan * 255));
+                e->get<CShape>().circle.setOutlineColor(sf::Color(currentOutlineColor.r, currentOutlineColor.g, currentOutlineColor.b,
+                    (float)currentLifespan / (float)e->get<CLifespan>().lifespan * 255));
+            }
+            else
+            {
+                e->destroy();
+            }
+        }
+    }
 }
 
 void Game::sCollision()
@@ -308,8 +333,7 @@ void Game::sUserInput()
 
             if (event.mouseButton.button == sf::Mouse::Left)
             {
-                std::cout << "Left Mouse Button Clicked at (" << event.mouseButton.x << "," << event.mouseButton.y << ")" << std::endl;
-                // call spawnBullet here
+                spawnBullet(player(), Vec2f(event.mouseButton.x, event.mouseButton.y));
             }
 
             if (event.mouseButton.button == sf::Mouse::Right)
