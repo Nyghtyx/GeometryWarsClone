@@ -1,6 +1,10 @@
 #include "Game.h"
 
 #include <iostream>
+#include <fstream>
+#include <math.h>
+//#include <cstdlib>
+//#include <ctime>
 
 Game::Game(const std::string& config)
 {
@@ -9,12 +13,64 @@ Game::Game(const std::string& config)
 
 void Game::init(const std::string& path)
 {
-    // TODO: read in config file here
-    //       use the premade PlayerConfig, EnemyConfig, BulletConfig variables
+    // read in config file here
+    std::ifstream fin("config.txt");
+    std::string temp;
 
-    // set up default window parameters
-    m_window.create(sf::VideoMode(1280, 720), "Assignment 2");
-    m_window.setFramerateLimit(60);
+    while (fin >> temp)
+    {
+        if (temp == "Window")
+        {
+            int wWidth{}, wHeight{}, wFramerateLimit{}, wFullScreen{};
+            fin >> wWidth >> wHeight >> wFramerateLimit >> wFullScreen;
+            if (wFullScreen)
+            {
+                m_window.create(sf::VideoMode(wWidth, wHeight), "Geometric Wars", sf::Style::Fullscreen);
+            }
+            else
+            {
+                m_window.create(sf::VideoMode(wWidth, wHeight), "Geometric Wars");
+            }
+            m_window.setFramerateLimit(wFramerateLimit);
+        }
+        else if (temp == "Font")
+        {
+            std::string fontFilename;
+            int fontSize{};
+            int fontColor[3]{};
+            fin >> fontFilename >> fontSize;
+            for (int i = 0; i < 3; i++)
+            {
+                fin >> fontColor[i];
+            }
+
+            if (!m_font.loadFromFile(fontFilename))
+            {
+                std::cerr << "Could not load font!\n";
+                exit(-1);
+            }
+            m_text = sf::Text("Score :", m_font, fontSize);
+            m_text.setFillColor(sf::Color(fontColor[0], fontColor[1], fontColor[2]));
+        }
+        else if (temp == "Player")
+        {
+            fin >> m_playerConfig.SR >> m_playerConfig.CR >> m_playerConfig.S >> m_playerConfig.FR;
+            fin >> m_playerConfig.FG >> m_playerConfig.FB >> m_playerConfig.OR >> m_playerConfig.OG;
+            fin >> m_playerConfig.OB >> m_playerConfig.OT >> m_playerConfig.V;
+        }
+        else if (temp == "Enemy")
+        {
+            fin >> m_enemyConfig.SR >> m_enemyConfig.CR >> m_enemyConfig.SMIN >> m_enemyConfig.SMAX;
+            fin >> m_enemyConfig.OR >> m_enemyConfig.OG >> m_enemyConfig.OB >> m_enemyConfig.OT;
+            fin >> m_enemyConfig.VMIN >> m_enemyConfig.VMAX >> m_enemyConfig.L >> m_enemyConfig.SP;
+        }
+        else if (temp == "Bullet")
+        {
+            fin >> m_bulletConfig.SR >> m_bulletConfig.CR >> m_bulletConfig.S >> m_bulletConfig.FR;
+            fin >> m_bulletConfig.FG >> m_bulletConfig.FB >> m_bulletConfig.OR >> m_bulletConfig.OG;
+            fin >> m_bulletConfig.OB >> m_bulletConfig.OT >> m_bulletConfig.V >> m_bulletConfig.L;
+        }
+    }
 
     ImGui::SFML::Init(m_window);
 
@@ -37,6 +93,8 @@ void Game::run()
     // TODO: add pause functionality in here
     //       some systems should function while paused (rendering)
     //       some systems shouldn't (movement / input)
+    srand(time(0));
+
     while (m_running)
     {
         // update the entity manager
@@ -69,7 +127,6 @@ void Game::spawnPlayer()
     // TODO: Finish addding all properties of the player with the correct values from the config file
 
     // We create every entity by calling EntityManager.addEntity(tag)
-    // This returns a std::shared_ptr<Entity>, so we use 'auto' to save typing
     auto entity = m_entities.addEntity("player");
 
     // Give this entity a Transform so it spawns at (200,200) with velocity (1,1) and angle 0.0f
@@ -87,9 +144,20 @@ void Game::spawnEnemy()
 {
     // TODO: make sure the enemy is spawned properly with the m_enemyConfig variables
     //       the enemy must be spawned completely within the bounds of the window
+    sf::Vector2u wSize = m_window.getSize();
+    float spawnX = m_enemyConfig.SR + (rand() % (1 + wSize.x - 2 * m_enemyConfig.SR));
+    float spawnY = m_enemyConfig.SR + (rand() % (1 + wSize.y - 2 * m_enemyConfig.SR));
+    int vertices = m_enemyConfig.VMIN + (rand() % (1 + m_enemyConfig.VMAX - m_enemyConfig.VMIN));
+    // speed between min and max
+    float speed = m_enemyConfig.SMIN + (rand() % (int)(1 + m_enemyConfig.SMAX - m_enemyConfig.SMIN));
+    // random angle between [0, 2pi] for direction
+    float theta = (float)(rand()) / RAND_MAX * 2.0f * 3.141592f;
+    float speedX = speed * std::cos(theta);
+    float speedY = speed * std::sin(theta);
 
-    // record when the most recent enemy was spawned
-    m_lastEnemySpawnTime = m_currentFrame;
+    auto entity = m_entities.addEntity("enemy");
+    entity->add<CTransform>(Vec2f(spawnX, spawnY), Vec2f(speedX, speedY), 0.0f);
+    entity->add<CShape>(m_enemyConfig.SR, vertices, sf::Color(255, 0, 0), sf::Color(m_enemyConfig.OR, m_enemyConfig.OG, m_enemyConfig.OB), m_enemyConfig.OT);
 }
 
 // spawns the small enemies when a big one (input entity e) explodes
@@ -121,10 +189,11 @@ void Game::sMovement()
     // TODO: implement all entity movement in this function
     //       you should read the m_player->Input component to determine if the player is moving
 
-    // Sample movement speed update
-    auto& transform = player()->get<CTransform>();
-    transform.pos.x += transform.velocity.x;
-    transform.pos.y += transform.velocity.y;
+    for (auto& e : m_entities.getEntities())
+    {
+        auto& transform = e->get<CTransform>();
+        transform.pos += transform.velocity;
+    }
 }
 
 void Game::sLifespan()
@@ -148,7 +217,13 @@ void Game::sCollision()
 
 void Game::sEnemySpawner()
 {
-    // TODO: code which implements enemy spawning should go here
+    if ((m_currentFrame - m_lastEnemySpawnTime) > m_enemyConfig.SP)
+    {
+        spawnEnemy();
+
+        // record when the most recent enemy was spawned
+        m_lastEnemySpawnTime = m_currentFrame;
+    }
 }
 
 void Game::sGUI()
@@ -166,15 +241,14 @@ void Game::sRender()
     //       sample drawing of the player Entity that we have created
     m_window.clear();
 
-    // set the position of the shape based on the entity's transform->pos
-    player()->get<CShape>().circle.setPosition(player()->get<CTransform>().pos);
+    for (auto& e : m_entities.getEntities())
+    {
+        e->get<CShape>().circle.setPosition(e->get<CTransform>().pos);
+        e->get<CTransform>().angle += 1.0f;
+        e->get<CShape>().circle.setRotation(player()->get<CTransform>().angle);
 
-    // set the rotation of the shape based on the entity's transform->angle
-    player()->get<CTransform>().angle += 1.0f;
-    player()->get<CShape>().circle.setRotation(player()->get<CTransform>().angle);
-
-    // draw the entity's sf::CircleShape
-    m_window.draw(player()->get<CShape>().circle);
+        m_window.draw(e->get<CShape>().circle);
+    }
 
     // draw the ui last
     ImGui::SFML::Render(m_window);
