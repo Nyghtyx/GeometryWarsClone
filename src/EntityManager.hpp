@@ -23,13 +23,14 @@ public:
     void update()
     {
         // Add entities from m_entitiesToAdd to the proper locations(s)
-        for (auto e : m_entitiesToAdd)
+        for (auto& e : m_entitiesToAdd)
         {
             m_entities.push_back(e);
             // not sure if this is needed here because it seems that entities
             // are being added to the map at the time of creation within addEntity()
             // m_entityMap[e->tag()].push_back(e);
         }
+        m_entitiesToAdd.clear();
 
         // remove dead entities from the vector of all entities
         removeDeadEntities(m_entities);
