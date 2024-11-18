@@ -88,6 +88,11 @@ public:
     {
         return std::sqrtf((x-rhs.x)*(x-rhs.x) + (y-rhs.y)*(y-rhs.y));
     }
+
+    float length() const
+    {
+        return std::sqrtf((x * x) + (y * y));
+    }
 };
 
 using Vec2f = Vec2<float>;
