@@ -125,16 +125,15 @@ void Game::setPaused(bool paused)
 // respawn the player in the middle of the screen
 void Game::spawnPlayer()
 {
-    // TODO: Finish addding all properties of the player with the correct values from the config file
-
     // We create every entity by calling EntityManager.addEntity(tag)
     auto entity = m_entities.addEntity("player");
 
     // Give this entity a Transform so it spawns at (200,200) with velocity (1,1) and angle 0.0f
-    entity->add<CTransform>(Vec2f(200.0f, 200.0f), Vec2f(1.0f, 1.0f), 0.0f);
+    entity->add<CTransform>(Vec2f(m_window.getSize().x / 2, m_window.getSize().y / 2), Vec2f(0.0f, 0.0f), 0.0f);
 
     entity->add<CShape>(m_playerConfig.SR, m_playerConfig.V, sf::Color(m_playerConfig.FR, m_playerConfig.FG, m_playerConfig.FB), 
         sf::Color(m_playerConfig.OR, m_playerConfig.OG, m_playerConfig.OB), m_playerConfig.OT);
+    entity->get<CShape>().circle.setOrigin(m_playerConfig.SR, m_playerConfig.SR);
 
     // Add an input component to the player so that we can use inputs
     entity->add<CInput>();
@@ -159,6 +158,7 @@ void Game::spawnEnemy()
     entity->add<CTransform>(Vec2f(spawnX, spawnY), Vec2f(speedX, speedY), 0.0f);
     entity->add<CShape>(m_enemyConfig.SR, vertices, sf::Color(255, 0, 0), 
         sf::Color(m_enemyConfig.OR, m_enemyConfig.OG, m_enemyConfig.OB), m_enemyConfig.OT);
+    entity->get<CShape>().circle.setOrigin(m_enemyConfig.SR, m_enemyConfig.SR);
 }
 
 // spawns the small enemies when a big one (input entity e) explodes
@@ -182,6 +182,7 @@ void Game::spawnBullet(std::shared_ptr<Entity> entity, const Vec2f& target)
     bullet->add<CTransform>(entityPos, bulletSpeed, 0.0f);
     bullet->add<CShape>(m_bulletConfig.SR, m_bulletConfig.V, sf::Color(m_bulletConfig.FR, m_bulletConfig.FG, m_bulletConfig.FB),
         sf::Color(m_bulletConfig.OR, m_bulletConfig.OG, m_bulletConfig.OB), m_bulletConfig.OT);
+    bullet->get<CShape>().circle.setOrigin(m_bulletConfig.SR, m_bulletConfig.SR);
     bullet->add<CLifespan>(m_bulletConfig.L);
 }
 
@@ -194,6 +195,24 @@ void Game::sMovement()
 {
     // TODO: implement all entity movement in this function
     //       you should read the m_player->Input component to determine if the player is moving
+
+    // handle player movement
+    Vec2f tempVel = Vec2f(0.0f, 0.0f);
+    auto& playerInput = player()->get<CInput>();
+    if (playerInput.up) { tempVel.y += -1.0f; }
+    if (playerInput.down) { tempVel.y += 1.0f; }
+    if (playerInput.left) { tempVel.x += -1.0f; }
+    if (playerInput.right) { tempVel.x += 1.0f; }
+
+    if (tempVel.x == 0.0f && tempVel.y == 0.0f)
+    {
+        player()->get<CTransform>().velocity = Vec2f(0.0f, 0.0f);
+    }
+    else
+    {
+        player()->get<CTransform>().velocity = tempVel / tempVel.length() * m_playerConfig.S;
+    }
+    
 
     for (auto& e : m_entities.getEntities())
     {
@@ -238,6 +257,35 @@ void Game::sCollision()
 {
     // TODO: implement all proper collisions between entities
     //       be sure to use the collision radius, NOT the shape radius
+    auto& playerPos = player()->get<CTransform>().pos;
+    // enemies will bounce on walls, destroy the player and get killed by bullets
+    for (auto& e : m_entities.getEntities("enemy"))
+    {
+        auto& enemyPos = e->get<CTransform>().pos;
+        int wWidth = m_window.getSize().x;
+        int wHeight = m_window.getSize().y;
+
+        // bounce on walls
+        if ((enemyPos.x + m_enemyConfig.CR) > wWidth || (enemyPos.x - m_enemyConfig.CR) < 0)
+        {
+            e->get<CTransform>().velocity.x *= -1;
+        }
+        else if ((enemyPos.y + m_enemyConfig.CR) > wHeight || (enemyPos.y - m_enemyConfig.CR) < 0)
+        {
+            e->get<CTransform>().velocity.y *= -1;
+        }
+        
+        // collide with player
+        Vec2f distFromPlayer = playerPos - enemyPos;
+        if ((distFromPlayer.x * distFromPlayer.x + distFromPlayer.y * distFromPlayer.y) < 
+            ((m_playerConfig.CR + m_enemyConfig.CR) * (m_playerConfig.CR + m_enemyConfig.CR)))
+        {
+            player()->destroy();
+            // TODO spawn mini enemies
+            e->destroy();
+            spawnPlayer();
+        }
+    }
 }
 
 void Game::sEnemySpawner()
@@ -306,9 +354,18 @@ void Game::sUserInput()
             switch (event.key.code)
             {
             case sf::Keyboard::W:
-                std::cout << "W Key Pressed\n";
-                // TODO: set player's input component "up" to true
+                player()->get<CInput>().up = true;
                 break;
+            case sf::Keyboard::A:
+                player()->get<CInput>().left = true;
+                break;
+            case sf::Keyboard::S:
+                player()->get<CInput>().down = true;
+                break;
+            case sf::Keyboard::D:
+                player()->get<CInput>().right = true;
+                break;
+
             default: break;
             }
         }
@@ -319,8 +376,16 @@ void Game::sUserInput()
             switch (event.key.code)
             {
             case sf::Keyboard::W:
-                std::cout << "W Key Released\n";
-                // TODO: set player's input component "up" to false
+                player()->get<CInput>().up = false;
+                break;
+            case sf::Keyboard::A:
+                player()->get<CInput>().left = false;
+                break;
+            case sf::Keyboard::S:
+                player()->get<CInput>().down = false;
+                break;
+            case sf::Keyboard::D:
+                player()->get<CInput>().right = false;
                 break;
             default: break;
             }
