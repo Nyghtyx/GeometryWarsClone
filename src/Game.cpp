@@ -3,8 +3,6 @@
 #include <iostream>
 #include <fstream>
 #include <math.h>
-//#include <cstdlib>
-//#include <ctime>
 
 Game::Game(const std::string& config)
 {
@@ -103,23 +101,27 @@ void Game::run()
         // required update call to imgui
         ImGui::SFML::Update(m_window, m_deltaClock.restart());
 
-        sEnemySpawner();
-        sLifespan();
-        sMovement();
-        sCollision();
+        if(m_spawning) { sEnemySpawner(); }
+        if(m_lifespan) { sLifespan(); }
+        if(m_movement) { sMovement(); }
+        if(m_collision) { sCollision(); }
         sUserInput();
         sGUI();
-        sRender();
-
-        // increment the current frame
-        // may need to be moved when pause implemented
-        m_currentFrame++;
+        if (m_render) { sRender(); }
+        
+        if (!m_paused)
+        {
+            m_currentFrame++;
+        }
     }
 }
 
 void Game::setPaused(bool paused)
 {
-    // TODO
+    m_spawning = !paused;
+    m_lifespan = !paused;
+    m_movement = !paused;
+    m_collision = !paused;
 }
 
 // respawn the player in the middle of the screen
@@ -231,6 +233,9 @@ void Game::sMovement()
     {
         auto& transform = e->get<CTransform>();
         transform.pos += transform.velocity;
+        e->get<CShape>().circle.setPosition(transform.pos);
+        transform.angle += 1.0f;
+        e->get<CShape>().circle.setRotation(transform.angle);
     }
 }
 
@@ -380,10 +385,6 @@ void Game::sRender()
 
     for (auto& e : m_entities.getEntities())
     {
-        e->get<CShape>().circle.setPosition(e->get<CTransform>().pos);
-        e->get<CTransform>().angle += 1.0f;
-        e->get<CShape>().circle.setRotation(player()->get<CTransform>().angle);
-
         m_window.draw(e->get<CShape>().circle);
     }
 
@@ -423,6 +424,13 @@ void Game::sUserInput()
                 break;
             case sf::Keyboard::D:
                 player()->get<CInput>().right = true;
+                break;
+            case sf::Keyboard::Escape:
+                m_running = false;
+                break;
+            case sf::Keyboard::P:
+                m_paused = !m_paused;
+                setPaused(m_paused);
                 break;
 
             default: break;

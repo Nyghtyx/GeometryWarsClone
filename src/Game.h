@@ -13,10 +13,10 @@ struct BulletConfig { int SR, CR, FR, FG, FB, OR, OG, OB, OT, V, L; float S; };
 
 class Game
 {
-    sf::RenderWindow    m_window;           // the window we will draw to
-    EntityManager       m_entities;         // vector of entities to maintain
-    sf::Font            m_font;             // the font we will use to draw
-    sf::Text            m_text;             // the score text to be drawn to the screen
+    sf::RenderWindow    m_window;                   // the window we will draw to
+    EntityManager       m_entities;                 // vector of entities to maintain
+    sf::Font            m_font;                     // the font we will use to draw
+    sf::Text            m_text;                     // the score text to be drawn to the screen
     PlayerConfig        m_playerConfig;
     EnemyConfig         m_enemyConfig;
     BulletConfig        m_bulletConfig;
@@ -24,19 +24,24 @@ class Game
     int                 m_score = 0;
     int                 m_currentFrame = 0;
     int                 m_lastEnemySpawnTime = 0;
-    bool                m_paused = false;   // whether we update game logic
-    bool                m_running = true;   // whether the game is running
+    bool                m_paused = false;           // whether we update game logic
+    bool                m_running = true;           // whether the game is running
+    bool                m_spawning = true;          // whether we spawn enemies
+    bool                m_lifespan = true;          // whether we count lifespan
+    bool                m_movement = true;          // whether we compute movement
+    bool                m_collision = true;         // whether we compute collisions
+    bool                m_render = true;            // whether we render entities
 
-    void init(const std::string& config);   // initialize the GameState with a config file
-    void setPaused(bool paused);            // pause the game
+    void init(const std::string& config);           // initialize the GameState with a config file
+    void setPaused(bool paused);                    // pause the game
 
-    void sMovement();                       // System: Entity position / movement update
-    void sUserInput();                      // System: User Input
-    void sLifespan();                       // System: Lifespan
-    void sRender();                         // System: Render / Drawing
+    void sMovement();                               // System: Entity position / movement update
+    void sUserInput();                              // System: User Input
+    void sLifespan();                               // System: Lifespan
+    void sRender();                                 // System: Render / Drawing
     void sGUI();
-    void sEnemySpawner();                   // System: Spawns Enemies
-    void sCollision();                      // System: Collisions
+    void sEnemySpawner();                           // System: Spawns Enemies
+    void sCollision();                              // System: Collisions
 
     void spawnPlayer();
     void spawnEnemy();
@@ -48,7 +53,7 @@ class Game
 
 public:
 
-    Game(const std::string& config);        // constructor, takes in game config
+    Game(const std::string& config);                // constructor, takes in game config
 
     void run();
 };
