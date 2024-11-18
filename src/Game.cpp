@@ -255,8 +255,6 @@ void Game::sLifespan()
 
 void Game::sCollision()
 {
-    // TODO: implement all proper collisions between entities
-    //       be sure to use the collision radius, NOT the shape radius
     auto& playerPos = player()->get<CTransform>().pos;
     auto& playerVel = player()->get<CTransform>().velocity;
     int wWidth = m_window.getSize().x;
@@ -284,6 +282,20 @@ void Game::sCollision()
             // TODO spawn mini enemies
             e->destroy();
             spawnPlayer();
+        }
+
+        // collide with bullets
+        for (auto& b : m_entities.getEntities("bullet"))
+        {
+            Vec2f distFromBullet = b->get<CTransform>().pos - enemyPos;
+            if ((distFromBullet.x * distFromBullet.x + distFromBullet.y * distFromBullet.y) <
+                ((m_enemyConfig.CR + m_bulletConfig.CR) * (m_enemyConfig.CR + m_bulletConfig.CR)))
+            {
+                b->destroy();
+                // TODO spawn mini enemies
+                e->destroy();
+                break;
+            }
         }
     }
     // player collide with walls
