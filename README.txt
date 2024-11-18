@@ -45,7 +45,7 @@ Enemy(s):
   outward at angles at a fixed intervals equal to (360 / vertices).
 
 Score:
-- Each time an enemy spwans, it is given a score component of N*100, where N
+- Each time an enemy spawns, it is given a score component of N*100, where N
   is the number of vertices it has. Small enemies get double this value.
 - If a player bullet kills an enemy, the game score is increased by the score
   component of the enemy killed.
@@ -113,7 +113,7 @@ Player SR CR S FR FG FB OR OG OB OT V
   Shape vertices    V           int
 
 Enemy Specification:
-Enemy SR CR SMIN SMAX OR OG OB OT VMIN VMAX L SI
+Enemy SR CR SMIN SMAX OR OG OB OT VMIN VMAX L SP
   Shape Radius      SR          int
   Collision Radius  CR          int
   Min/Max Speed     SMIN,SMAX   float, float
@@ -148,7 +148,7 @@ I recommend approaching this assignment in the following order:
    function which deletes dead entities until later when you get more game
    mechanics working.
 3. Implement basics of the Game class:
-   a. Constrcut a player Entity using the spawnPlayer() function
+   a. Construct a player Entity using the spawnPlayer() function
    b. Implement basic drawing of entities using the Game::sRender() function
    c. Construct some enemies using the spawnEnemy() function
    d. Construct a bullet using the spawnBullet() function
