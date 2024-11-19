@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <math.h>
+#include <random>
 
 Game::Game(const std::string& config)
 {
@@ -14,12 +15,13 @@ void Game::init(const std::string& path)
     // read in config file here
     std::ifstream fin("config.txt");
     std::string temp;
+    int wWidth{}, wHeight{};
 
     while (fin >> temp)
     {
         if (temp == "Window")
         {
-            int wWidth{}, wHeight{}, wFramerateLimit{}, wFullScreen{};
+            int wFramerateLimit{}, wFullScreen{};
             fin >> wWidth >> wHeight >> wFramerateLimit >> wFullScreen;
             if (wFullScreen)
             {
@@ -70,6 +72,15 @@ void Game::init(const std::string& path)
         }
     }
 
+    // Initialize random number distributions
+    m_xDist = std::uniform_real_distribution<float>(m_enemyConfig.SR, wWidth - m_enemyConfig.SR);
+    m_yDist = std::uniform_real_distribution<float>(m_enemyConfig.SR, wHeight - m_enemyConfig.SR);
+    m_verticesDist = std::uniform_int_distribution<int>(m_enemyConfig.VMIN, m_enemyConfig.VMAX);
+    m_speedDist = std::uniform_real_distribution<float>(m_enemyConfig.SMIN, m_enemyConfig.SMAX);
+    m_angleDist = std::uniform_real_distribution<float>(0.0f, 2.0f * 3.141592f); // [0, 2pi]
+    m_colorDist = std::uniform_int_distribution<int>(0, 255);
+
+
     ImGui::SFML::Init(m_window);
 
     // scale the imgui ui and text size by 2
@@ -88,8 +99,6 @@ std::shared_ptr<Entity> Game::player()
 
 void Game::run()
 {
-    srand(time(0));
-
     while (m_running)
     {
         // update the entity manager
@@ -142,21 +151,18 @@ void Game::spawnPlayer()
 void Game::spawnEnemy()
 {
     // the enemy must be spawned completely within the bounds of the window
-    sf::Vector2u wSize = m_window.getSize();
-    float spawnX = m_enemyConfig.SR + (rand() % (1 + wSize.x - 2 * m_enemyConfig.SR));
-    float spawnY = m_enemyConfig.SR + (rand() % (1 + wSize.y - 2 * m_enemyConfig.SR));
-    int vertices = m_enemyConfig.VMIN + (rand() % (1 + m_enemyConfig.VMAX - m_enemyConfig.VMIN));
+    int vertices = m_verticesDist(m_randomGen);
     // speed between min and max
-    float speed = m_enemyConfig.SMIN + (rand() % (int)(1 + m_enemyConfig.SMAX - m_enemyConfig.SMIN));
+    float speed = m_speedDist(m_randomGen);
     // random angle between [0, 2pi] for direction
-    float theta = (float)(rand()) / RAND_MAX * 2.0f * 3.141592f;
+    float theta = m_angleDist(m_randomGen);
     float speedX = speed * std::cos(theta);
     float speedY = speed * std::sin(theta);
 
     auto entity = m_entities.addEntity("enemy");
-    entity->add<CTransform>(Vec2f(spawnX, spawnY), Vec2f(speedX, speedY), 0.0f);
-    entity->add<CShape>(m_enemyConfig.SR, vertices, 
-        sf::Color(rand() % (1 + 255), rand() % (1 + 255), rand() % (1 + 255)),
+    entity->add<CTransform>(Vec2f(m_xDist(m_randomGen), m_yDist(m_randomGen)), Vec2f(speedX, speedY), 0.0f);
+    entity->add<CShape>(m_enemyConfig.SR, vertices,
+        sf::Color(m_colorDist(m_randomGen), m_colorDist(m_randomGen), m_colorDist(m_randomGen)),
         sf::Color(m_enemyConfig.OR, m_enemyConfig.OG, m_enemyConfig.OB), m_enemyConfig.OT);
     entity->get<CShape>().circle.setOrigin(m_enemyConfig.SR, m_enemyConfig.SR);
     entity->add<CScore>(vertices * 100);
@@ -169,7 +175,7 @@ void Game::spawnSmallEnemies(std::shared_ptr<Entity> e)
     // - set each small enemy to the same color as the original, half the size
     // - small enemies are worth double points of the original enemy
     int vertices = (int)e->get<CShape>().circle.getPointCount();
-    float theta =  (float)(rand()) / RAND_MAX * 2.0f * 3.141592f;
+    float theta =  m_angleDist(m_randomGen);
     for (int i = 0; i < vertices; i++)
     {
         
@@ -295,7 +301,6 @@ void Game::sCollision()
             ((m_playerConfig.CR + m_enemyConfig.CR) * (m_playerConfig.CR + m_enemyConfig.CR)))
         {
             player()->destroy();
-            spawnSmallEnemies(e);
             e->destroy();
             spawnPlayer();
         }
@@ -309,6 +314,7 @@ void Game::sCollision()
             {
                 b->destroy();
                 spawnSmallEnemies(e);
+                m_score += e->get<CScore>().score;
                 e->destroy();
                 break;
             }
@@ -338,6 +344,7 @@ void Game::sCollision()
                 ((m_enemyConfig.CR / 2 + m_bulletConfig.CR) * (m_enemyConfig.CR / 2 + m_bulletConfig.CR)))
             {
                 b->destroy();
+                m_score += e->get<CScore>().score;
                 e->destroy();
                 break;
             }
