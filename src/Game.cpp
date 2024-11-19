@@ -88,9 +88,6 @@ std::shared_ptr<Entity> Game::player()
 
 void Game::run()
 {
-    // TODO: add pause functionality in here
-    //       some systems should function while paused (rendering)
-    //       some systems shouldn't (movement / input)
     srand(time(0));
 
     while (m_running)
@@ -107,7 +104,7 @@ void Game::run()
         if(m_collision) { sCollision(); }
         sUserInput();
         sGUI();
-        if (m_render) { sRender(); }
+        sRender();
         
         if (!m_paused)
         {
@@ -373,21 +370,74 @@ void Game::sEnemySpawner()
 void Game::sGUI()
 {
     ImGui::Begin("Geometry Wars");
+    if (ImGui::BeginTabBar("MyTabBar"))
+    {
+        if (ImGui::BeginTabItem("Systems"))
+        {
+            ImGui::Checkbox("Movement", &m_movement);
+            ImGui::Checkbox("Lifespan", &m_lifespan);
+            ImGui::Checkbox("Collision", &m_collision);
+            ImGui::Checkbox("Spawning", &m_spawning);
+            ImGui::SliderInt("Spawn", &m_enemyConfig.SP, 0, 120);
+            if (ImGui::Button("Manual Spawn"))
+            {
+                spawnEnemy();
+            }
+            ImGui::Checkbox("Rendering", &m_render);
+            ImGui::EndTabItem();
+        }
 
-    ImGui::Text("Stuff Goes Here");
+        if (ImGui::BeginTabItem("Entities"))
+        {
+            if (ImGui::CollapsingHeader("Entities by Tag"))
+            {
+                for (auto& [tag, entityVec] : m_entities.getEntityMap())
+                {
+                    if (ImGui::CollapsingHeader(tag.c_str()))
+                    {
+                        if (ImGui::BeginTable("", 4))
+                        {
+                            for (auto& e : entityVec)
+                            {
+                                std::string id = std::to_string(e->id());
+                                Vec2f position = e->get<CTransform>().pos;
+                                ImGui::TableNextRow();
+                                ImGui::TableSetColumnIndex(0);
+                                if (ImGui::Button(("D##" + id).c_str()))
+                                {
+                                    e->destroy();
+                                }
+                                ImGui::TableSetColumnIndex(1);
+                                ImGui::TextUnformatted(id.c_str());
+                                ImGui::TableSetColumnIndex(2);
+                                ImGui::TextUnformatted(tag.c_str());
+                                ImGui::TableSetColumnIndex(3);
+                                ImGui::TextUnformatted(("(" + std::to_string((int)position.x) + "," + std::to_string((int)position.y) + ")").c_str());
+                                
+                            }
+                            ImGui::EndTable();
+                        }
+                    }
+                }
+            }
 
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
     ImGui::End();
 }
 
 void Game::sRender()
 {
     m_window.clear();
-
-    for (auto& e : m_entities.getEntities())
+    if (m_render)
     {
-        m_window.draw(e->get<CShape>().circle);
+        for (auto& e : m_entities.getEntities())
+        {
+            m_window.draw(e->get<CShape>().circle);
+        }
     }
-
     // draw the ui last
     ImGui::SFML::Render(m_window);
 
