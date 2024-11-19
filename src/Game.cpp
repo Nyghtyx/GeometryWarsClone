@@ -410,10 +410,20 @@ void Game::sGUI()
                                 Vec2f position = e->get<CTransform>().pos;
                                 ImGui::TableNextRow();
                                 ImGui::TableSetColumnIndex(0);
+                                sf::Color eColor = e->get<CShape>().circle.getFillColor();
+                                ImVec4 imguiColor(
+                                    static_cast<float>(eColor.r) / 255.0f, // Red
+                                    static_cast<float>(eColor.g) / 255.0f, // Green
+                                    static_cast<float>(eColor.b) / 255.0f, // Blue
+                                    static_cast<float>(eColor.a) / 255.0f  // Alpha
+                                );
+
+                                ImGui::PushStyleColor(ImGuiCol_Button, imguiColor);
                                 if (ImGui::Button(("D##" + id).c_str()))
                                 {
                                     e->destroy();
                                 }
+                                ImGui::PopStyleColor(1);
                                 ImGui::TableSetColumnIndex(1);
                                 ImGui::TextUnformatted(id.c_str());
                                 ImGui::TableSetColumnIndex(2);
@@ -428,10 +438,47 @@ void Game::sGUI()
                 }
             }
 
+            if (ImGui::CollapsingHeader("All Entities"))
+            {                
+                if (ImGui::BeginTable("", 4))
+                {
+                    for (auto& e : m_entities.getEntities())
+                    {
+                        std::string id = std::to_string(e->id());
+                        Vec2f position = e->get<CTransform>().pos;
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        sf::Color eColor = e->get<CShape>().circle.getFillColor();
+                        ImVec4 imguiColor(
+                            static_cast<float>(eColor.r) / 255.0f, // Red
+                            static_cast<float>(eColor.g) / 255.0f, // Green
+                            static_cast<float>(eColor.b) / 255.0f, // Blue
+                            static_cast<float>(eColor.a) / 255.0f  // Alpha
+                        );
+                      
+                        ImGui::PushStyleColor(ImGuiCol_Button, imguiColor);
+                        if (ImGui::Button(("D##" + id).c_str()))
+                        {
+                            e->destroy();
+                        }
+                        ImGui::PopStyleColor(1);
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::TextUnformatted(id.c_str());
+                        ImGui::TableSetColumnIndex(2);
+                        ImGui::TextUnformatted(e->tag().c_str());
+                        ImGui::TableSetColumnIndex(3);
+                        ImGui::TextUnformatted(("(" + std::to_string((int)position.x) + "," + std::to_string((int)position.y) + ")").c_str());
+
+                    }
+                    ImGui::EndTable();
+                }
+            }
             ImGui::EndTabItem();
         }
+    
         ImGui::EndTabBar();
     }
+    
     ImGui::End();
 }
 
