@@ -80,6 +80,7 @@ void Game::init(const std::string& path)
     m_speedDist = std::uniform_real_distribution<float>(m_enemyConfig.SMIN, m_enemyConfig.SMAX);
     m_angleDist = std::uniform_real_distribution<float>(0.0f, 2.0f * 3.141592f); // [0, 2pi]
     m_colorDist = std::uniform_int_distribution<int>(0, 255);
+    m_random = std::uniform_real_distribution<float>(0.0f, 1.0f);
 
 
     ImGui::SFML::Init(m_window);
@@ -108,10 +109,11 @@ void Game::run()
         // required update call to imgui
         ImGui::SFML::Update(m_window, m_deltaClock.restart());
 
-        if(m_spawning) { sEnemySpawner(); }
+        if (m_spawning) { sEnemySpawner(); sSmallAllyBulletSpawner(); }
         if(m_lifespan) { sLifespan(); }
         if(m_movement) { sMovement(); }
         if(m_collision) { sCollision(); }
+        if(m_cooldown) { sCooldown(); }
         sUserInput();
         sGUI();
         sRender();
@@ -129,6 +131,7 @@ void Game::setPaused(bool paused)
     m_lifespan = !paused;
     m_movement = !paused;
     m_collision = !paused;
+    m_cooldown = !paused;
 }
 
 // respawn the player in the middle of the screen
@@ -146,6 +149,13 @@ void Game::spawnPlayer()
 
     // Add an input component to the player so that we can use inputs
     entity->add<CInput>();
+
+    // Add special move
+    // Cooldown in frames = cooldown in min * 60 * fps 
+    entity->add<CSpecial>(1*60*60);
+    entity->get<CSpecial>().text = sf::Text("Special Move Available!", m_font, 24);
+    entity->get<CSpecial>().text.setFillColor(sf::Color(255, 255, 255));
+    entity->get<CSpecial>().text.setPosition(200.0f, 0.0f);
 }
 
 // spawn an enemy at a random position
@@ -208,13 +218,38 @@ void Game::spawnBullet(std::shared_ptr<Entity> entity, const Vec2f& target)
     bullet->add<CLifespan>(m_bulletConfig.L);
 }
 
-void Game::spawnSpecialWeapon(std::shared_ptr<Entity> entity)
+// spawns a small ally that orbits the player (input entity e) and randomly shoots bullets
+void Game::spawnSpecialWeapon(std::shared_ptr<Entity> e)
 {
-    // TODO: implement your own special weapon
+    // - spawn a number of small allies equal to the vertices of the player
+    // - the allies start at the center of the player and move outwards until 3 x radius of the player
+    // - then start spinning around the player shooting bullets at random directions
+    if (e->has<CSpecial>() && e->get<CSpecial>().available)
+    {
+        int vertices = (int)e->get<CShape>().circle.getPointCount();
+        float theta = m_angleDist(m_randomGen);
+        for (int i = 0; i < vertices; i++)
+        {
+
+            auto entity = m_entities.addEntity("smallAlly");
+            entity->add<CTransform>(e->get<CTransform>().pos,
+                Vec2f(std::cos(theta + 2.0f * 3.141592f / vertices * i), std::sin(theta + 2.0f * 3.141592f / vertices * i))
+                * m_playerConfig.S,
+                0.0f);
+            entity->add<CShape>(m_playerConfig.SR / 2, vertices,
+                e->get<CShape>().circle.getFillColor(),
+                e->get<CShape>().circle.getOutlineColor(), m_playerConfig.OT);
+            entity->get<CShape>().circle.setOrigin(m_playerConfig.SR / 2.0f, m_playerConfig.SR / 2.0f);
+        }
+        e->get<CSpecial>().lastfired = m_currentFrame;
+        e->get<CSpecial>().available = false;
+        e->get<CSpecial>().text.setString("Special Move on Cooldown!");
+    }
 }
 
 void Game::sMovement()
 {
+    auto& playerTransform = player()->get<CTransform>();
     // handle player movement
     Vec2f tempVel = Vec2f(0.0f, 0.0f);
     auto& playerInput = player()->get<CInput>();
@@ -225,18 +260,31 @@ void Game::sMovement()
 
     if (tempVel.x == 0.0f && tempVel.y == 0.0f)
     {
-        player()->get<CTransform>().velocity = Vec2f(0.0f, 0.0f);
+        playerTransform.velocity = Vec2f(0.0f, 0.0f);
     }
     else
     {
-        player()->get<CTransform>().velocity = tempVel / tempVel.length() * m_playerConfig.S;
+        playerTransform.velocity = tempVel / tempVel.length() * m_playerConfig.S;
     }
-    
 
     for (auto& e : m_entities.getEntities())
     {
         auto& transform = e->get<CTransform>();
         transform.pos += transform.velocity;
+        
+        // special small Ally movement properties
+        if (e->tag() == "smallAlly")
+        {
+            // once they are at 4x distance from player they stop moving outwards
+            if (transform.pos.dist(playerTransform.pos) >= 3.9f * m_playerConfig.SR)
+            {
+                transform.velocity = Vec2f(0.0f, 0.0f);
+                float currentAngle = std::atan2(transform.pos.y - playerTransform.pos.y, transform.pos.x - playerTransform.pos.x);
+                transform.pos = playerTransform.pos + Vec2f(std::cos(currentAngle + 0.02f), std::sin(currentAngle + 0.02f)) * 4.2f * m_playerConfig.SR;
+            }
+            // they move with the player
+            transform.pos += playerTransform.velocity;
+        }
         e->get<CShape>().circle.setPosition(transform.pos);
         transform.angle += 1.0f;
         e->get<CShape>().circle.setRotation(transform.angle);
@@ -302,6 +350,10 @@ void Game::sCollision()
             ((m_playerConfig.CR + m_enemyConfig.CR) * (m_playerConfig.CR + m_enemyConfig.CR)))
         {
             player()->destroy();
+            for (auto& s : m_entities.getEntities("smallAlly"))
+            {
+                s->destroy();
+            }
             m_score = 0;
             m_text.setString("Score: " + std::to_string(m_score));
             e->destroy();
@@ -323,6 +375,23 @@ void Game::sCollision()
                 break;
             }
         }
+
+        // collide with small Allies
+        for (auto& s : m_entities.getEntities("smallAlly"))
+        {
+            Vec2f distFromSmallAlly = s->get<CTransform>().pos - enemyPos;
+            if ((distFromSmallAlly.x * distFromSmallAlly.x + distFromSmallAlly.y * distFromSmallAlly.y) <
+                ((m_enemyConfig.CR + m_playerConfig.CR / 2) * (m_enemyConfig.CR + m_playerConfig.CR / 2)))
+            {
+                s->destroy();
+                spawnSmallEnemies(e);
+                m_score += e->get<CScore>().score;
+                m_text.setString("Score: " + std::to_string(m_score));
+                e->destroy();
+                break;
+
+            }
+        }
     }
 
     // same for small enemies except they dont bounce on walls or spawn more enemies
@@ -333,9 +402,13 @@ void Game::sCollision()
         // collide with player
         Vec2f distFromPlayer = playerPos - enemyPos;
         if ((distFromPlayer.x * distFromPlayer.x + distFromPlayer.y * distFromPlayer.y) <
-            ((m_playerConfig.CR + m_enemyConfig.CR / 2) * (m_playerConfig.CR + m_enemyConfig.CR) / 2))
+            ((m_playerConfig.CR + m_enemyConfig.CR / 2) * (m_playerConfig.CR + m_enemyConfig.CR / 2)))
         {
             player()->destroy();
+            for (auto& s : m_entities.getEntities("smallAlly"))
+            {
+                s->destroy();
+            }
             m_score = 0;
             m_text.setString("Score: " + std::to_string(m_score));
             e->destroy();
@@ -350,6 +423,21 @@ void Game::sCollision()
                 ((m_enemyConfig.CR / 2 + m_bulletConfig.CR) * (m_enemyConfig.CR / 2 + m_bulletConfig.CR)))
             {
                 b->destroy();
+                m_score += e->get<CScore>().score;
+                m_text.setString("Score: " + std::to_string(m_score));
+                e->destroy();
+                break;
+            }
+        }
+
+        // collide with small Allies
+        for (auto& s : m_entities.getEntities("smallAlly"))
+        {
+            Vec2f distFromSmallAlly = s->get<CTransform>().pos - enemyPos;
+            if ((distFromSmallAlly.x * distFromSmallAlly.x + distFromSmallAlly.y * distFromSmallAlly.y) <
+                ((m_enemyConfig.CR / 2 + m_playerConfig.CR / 2) * (m_enemyConfig.CR / 2 + m_playerConfig.CR / 2)))
+            {
+                s->destroy();
                 m_score += e->get<CScore>().score;
                 m_text.setString("Score: " + std::to_string(m_score));
                 e->destroy();
@@ -381,6 +469,34 @@ void Game::sEnemySpawner()
     }
 }
 
+void Game::sSmallAllyBulletSpawner()
+{
+    
+    if (m_random(m_randomGen) > 0.98f)
+    {
+        for (auto& s : m_entities.getEntities("smallAlly"))
+        {
+            if (m_random(m_randomGen) > 0.5f)
+            {
+                spawnBullet(s, Vec2f(m_xDist(m_randomGen), m_yDist(m_randomGen)));
+            }
+        }
+    }
+    
+}
+
+void Game::sCooldown()
+{
+    if (player()->has<CSpecial>() && !player()->get<CSpecial>().available)
+    {
+        if (m_currentFrame - player()->get<CSpecial>().lastfired > player()->get<CSpecial>().cooldown)
+        {
+            player()->get<CSpecial>().available = true;
+            player()->get<CSpecial>().text.setString("Special Move Available!");
+        }
+    }
+}
+
 void Game::sGUI()
 {
     ImGui::Begin("Geometry Wars");
@@ -390,6 +506,7 @@ void Game::sGUI()
         {
             ImGui::Checkbox("Movement", &m_movement);
             ImGui::Checkbox("Lifespan", &m_lifespan);
+            ImGui::Checkbox("Cooldown", &m_cooldown);
             ImGui::Checkbox("Collision", &m_collision);
             ImGui::Checkbox("Spawning", &m_spawning);
             ImGui::SliderInt("Spawn", &m_enemyConfig.SP, 0, 120);
@@ -501,6 +618,7 @@ void Game::sRender()
     }
 
     m_window.draw(m_text);
+    m_window.draw(player()->get<CSpecial>().text);
 
     // draw the ui last
     ImGui::SFML::Render(m_window);
@@ -583,9 +701,8 @@ void Game::sUserInput()
             }
 
             if (event.mouseButton.button == sf::Mouse::Right)
-            {
-                std::cout << "Right Mouse Button Clicked at (" << event.mouseButton.x << "," << event.mouseButton.y << ")" << std::endl;
-                // call spawnSpecialWeapon here
+            {             
+                spawnSpecialWeapon(player());
             }
         }
     }

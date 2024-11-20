@@ -32,6 +32,7 @@ class Game
     bool                m_movement = true;          // whether we compute movement
     bool                m_collision = true;         // whether we compute collisions
     bool                m_render = true;            // whether we render entities
+    bool                m_cooldown = true;          // whether we compute cooldown
 
     // Random number generation
     std::mt19937                                    m_randomGen{std::random_device{}()};
@@ -41,6 +42,7 @@ class Game
     std::uniform_real_distribution<float>           m_speedDist;
     std::uniform_real_distribution<float>           m_angleDist;
     std::uniform_int_distribution<int>              m_colorDist;
+    std::uniform_real_distribution<float>           m_random;
 
     void init(const std::string& config);           // initialize the GameState with a config file
     void setPaused(bool paused);                    // pause the game
@@ -48,9 +50,11 @@ class Game
     void sMovement();                               // System: Entity position / movement update
     void sUserInput();                              // System: User Input
     void sLifespan();                               // System: Lifespan
+    void sCooldown();                               // System: Cooldown
     void sRender();                                 // System: Render / Drawing
     void sGUI();
     void sEnemySpawner();                           // System: Spawns Enemies
+    void sSmallAllyBulletSpawner();                 // System: Spawns Bullets from small Allies
     void sCollision();                              // System: Collisions
 
     void spawnPlayer();

@@ -80,5 +80,15 @@ public:
     CInput() = default;
 };
 
-// TODO add new component for special ability and whatever we need
-// Remember to add it to the entity class
+class CSpecial : public Component
+{
+public:
+    int cooldown        = 0;
+    int lastfired       = 0;
+    bool available      = true;
+    sf::Text text       {};
+
+    CSpecial() = default;
+    CSpecial(int cooldown)
+        : cooldown(cooldown) {}
+};
