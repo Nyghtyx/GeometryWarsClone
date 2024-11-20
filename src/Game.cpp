@@ -49,8 +49,9 @@ void Game::init(const std::string& path)
                 std::cerr << "Could not load font!\n";
                 exit(-1);
             }
-            m_text = sf::Text("Score :", m_font, fontSize);
+            m_text = sf::Text("Score : " + std::to_string(m_score), m_font, fontSize);
             m_text.setFillColor(sf::Color(fontColor[0], fontColor[1], fontColor[2]));
+            m_text.setPosition(0.0f, 0.0f);
         }
         else if (temp == "Player")
         {
@@ -301,6 +302,8 @@ void Game::sCollision()
             ((m_playerConfig.CR + m_enemyConfig.CR) * (m_playerConfig.CR + m_enemyConfig.CR)))
         {
             player()->destroy();
+            m_score = 0;
+            m_text.setString("Score: " + std::to_string(m_score));
             e->destroy();
             spawnPlayer();
         }
@@ -315,6 +318,7 @@ void Game::sCollision()
                 b->destroy();
                 spawnSmallEnemies(e);
                 m_score += e->get<CScore>().score;
+                m_text.setString("Score: " + std::to_string(m_score));
                 e->destroy();
                 break;
             }
@@ -332,6 +336,8 @@ void Game::sCollision()
             ((m_playerConfig.CR + m_enemyConfig.CR / 2) * (m_playerConfig.CR + m_enemyConfig.CR) / 2))
         {
             player()->destroy();
+            m_score = 0;
+            m_text.setString("Score: " + std::to_string(m_score));
             e->destroy();
             spawnPlayer();
         }
@@ -345,6 +351,7 @@ void Game::sCollision()
             {
                 b->destroy();
                 m_score += e->get<CScore>().score;
+                m_text.setString("Score: " + std::to_string(m_score));
                 e->destroy();
                 break;
             }
@@ -492,6 +499,9 @@ void Game::sRender()
             m_window.draw(e->get<CShape>().circle);
         }
     }
+
+    m_window.draw(m_text);
+
     // draw the ui last
     ImGui::SFML::Render(m_window);
 
